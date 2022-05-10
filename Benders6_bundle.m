@@ -48,6 +48,8 @@ mpopt = mpoption(mpopt,'ipopt.opts',optionsipopt,...
 % shunt devices
 casoX = toggle_shuntgen(casoX);
 % nodal mismatch power equations
+delta_factor = 0.5;
+casoX.factorFO = delta_factor;
 casoX = toggle_softlims_ext1(casoX,'on'); % bus balance equations with slack constraints
 % Fixed feasible variables and obtain initial cost
 now1 = tic();
@@ -62,15 +64,9 @@ basecos_inicial = basecost;
 fprintf('El primer OPF es %i\n',results0.success)
 % store solution w/o cuts
 Pgen_base = results0.gen(:,2); % se activa solo para resultados parciales
-% Qgen_base = results0.gen(:,3);
-% Vbus_base = results0.bus(:,8);
 ZLB = []; % stores Z_lo
 ZUB=[];  % stores Z_ub
 ZUB1=[]; % almacena el Z_ub sin cambios
-% flow_P = results0.branch(:,14);
-
-
-% mpopt = mpoption(mpopt,'opf.start',2); % warm start (is not neccesary but accelerates OPF convergence)
 z_cut_obj = 0;
 adaptive_cut = 'normal'; % Adaptive cut is to probing the actual cut
 %% ******************** Contingency response ************
@@ -91,22 +87,11 @@ contingency_sol = repmat(contingency_sol,tot_con,1); % replicate for every conti
 % **********************************************************
 % 							BEGIN BENDERS PROCEDURE
 % **********************************************************
-% obj_func_prev = Inf(tot_con,1); % begin with inf value
-% optionsipopt.alpha_for_y = 'safer-min-dual-infeas';
-% mpopt = mpoption(mpopt,'ipopt.opts',optionsipopt);
 mpopt1 = mpopt; % tomar los ajustes actuales
 optionsipopt1 = optionsipopt;
-% optionsipopt1.print_level = 5;
-% optionsipopt1.mu_strategy = 'adaptive';
-% optionsipopt1.mu_oracle = 'quality-function';
-% optionsipopt1.fixed_mu_oracle ='average_compl';
-% optionsipopt1.adaptive_mu_globalization = 'kkt-error';
-% optionsipopt1.mu_linear_decrease_factor = 0.8;
-% optionsipopt1.alpha_for_y = 'min-dual-infeas';
-% optionsipopt1.accept_every_trial_step = 'yes';
-% optionsipopt1.expect_infeasible_problem = 'yes';
 mpopt1 = mpoption(mpopt1,'ipopt.opts',optionsipopt1);
 upbound = Inf;
+Z_ub = upbound;    
 lobound = -Inf;
 it_cuts = 1; % current iteration of benders cut procedure
 cost_accept = 0.1*basecost;
@@ -116,9 +101,9 @@ cuts_tot = 30;
 delta_bundle = inf;
 tol_bundle = 1e-5; % de prueba
 m_bundle = 0.01;
-t_bundle = 1e3; % valor de inicio del multiplicador (beta en doc tesis)
+t_bundle = 1e6; % valor de inicio del multiplicador (beta en doc tesis)
 % fin parámetros bundle
-while (it_cuts <=cuts_tot)&&(no_mejora <= 10)&& ((upbound-lobound) >= 	0.1*lobound) && (delta_bundle > tol_bundle) % outer loop, controls the process entirely
+while (it_cuts <=cuts_tot)&&(no_mejora <= 10)&& ((Z_ub-lobound) >= 	0.01*lobound) && (delta_bundle > tol_bundle) % outer loop, controls the process entirely
 	disp(strcat('iteracion de benders No ',num2str(it_cuts)));
 	% Foreach contingency
     Z_ub = basecost; % c(y_fixed) + contingency_cost (upper bound)
@@ -127,6 +112,8 @@ while (it_cuts <=cuts_tot)&&(no_mejora <= 10)&& ((upbound-lobound) >= 	0.1*lobou
 	parfor con=1:tot_con % maybe a parfor loop
 		% additional options to IPOPT
 		casoX_ext = results0; % copy results
+		casoX_ext.factorFO = (1-delta_factor)/tot_con;
+		% casoX_ext.factorFO =1;
 		casoX_ext.Pgk.Pg0 = casoX_ext.gen(:,PG)/casoX_ext.baseMVA; % Active power base case (p.u.)
         casoX_ext.Vdev.V_i = casoX_ext.bus(:,8); % Voltage magnitude base case
 		casoX_ext.Pgk.G_k = contingency(con).G_k; % generators in area
@@ -142,45 +129,21 @@ while (it_cuts <=cuts_tot)&&(no_mejora <= 10)&& ((upbound-lobound) >= 	0.1*lobou
 
 		% ************************* Call toggles in contingency ***********************************
 		casoX_ext.taoV = 1e-3;
-		% casoX_ext = toggle_Pgk_polyhedral(casoX_ext);
-		% casoX_ext = toggle_Pgk_newform(casoX_ext); % add active power redispatch equations
 		casoX_ext = toggle_Pgk_newform2(casoX_ext); % add active power redispatch equations
 		casoX_ext = toggle_voltages_newformulation(casoX_ext); % add voltages behavior equations in contingency for every generator or bus with generators.
-        % fprintf('======================= contingencia %i ==================\n',con)
-		% results2 = solvempec(casoX_ext,mpopt1);
-		% results2 = solvempec_test(casoX_ext,mpopt1);
-		% try
-		% 	results2 = solvempec_test1(casoX_ext,mpopt1);
-		% catch
-		% 	error('problemas en la contingencia %i e iteracion %i',con,it_cuts);
-		% end
         now2 = tic();
 		results2 = solvempec_test1(casoX_ext,mpopt1);
         time2 = toc(now2);
         fprintf('\n el tiempo es %d s\n',time2);
-        % results2 = solvempec1(casoX_ext,mpopt1);
-		% results2 = runopf(casoX_ext,mpopt1);
-		% if results2.success==0
-			% fprintf('El OPF de la contingencia %i es %i\n',con,results2.success)
-		% end
-
+        
         % *************************   End toggles *****************************************
 
         % ************************* Creacion de cortes de Benders
 
-        % [ConstantPg,muPg] = benderscutPg(results2);
 		[ConstantPg,muPg] = benderscutPg_test(results2);
 		[ConstantVb,muVb] = benderscutVb(results2);
 		muPgx = muPgx + muPg;
 		muVbx = muVbx + muVb;
-		% [ConstantVb,muVb] = benderscutVb1(results2);
-        % storeVB = [storeVB ConstantVb];
-        % storemuVb = [storemuVb muVb];
-
-
-        % introduccion de un cambio necesario
-        % ConstantVb = 0;
-        % muVb = zeros(size(results2.bus(:,1)));
 
 		% ************************** Calculo de F(x) valor de la contingencia **************
 		if isfield(results2.qdc,'Pgkcost')
@@ -218,54 +181,7 @@ while (it_cuts <=cuts_tot)&&(no_mejora <= 10)&& ((upbound-lobound) >= 	0.1*lobou
 			varname = varnames{i};
 			contingency_sol(con).s_balance(:,i) = results2.var.val.(varname)*results2.baseMVA;
 		end
-
-
-		%adaptive_cut = 'normal';
-
-		% else
-			% % reduce original cost, attempting cut off higher costs
-			% % calculate tao from overrun
-			% mu_1 = zeros(length(results2.Pgk.Gin),1);
-			% % represents the condition Pgmax <= Pg + alpha_g*deltak
-			% mu_2 = zeros(length(results2.Pgk.Gin),1);
-			% % represents the condition Pgmin >= Pg + alpha_g*deltak
-			% mu_3 = zeros(length(results2.Pgk.Gin),1);
-			% % represents the condition Pgk = Pg for generators out of area
-			% mu_4 = results2.var.mu.u.Pg - results2.var.mu.l.Pg;
-			% % Fill mu for generators in area
-			% mu_1(results2.Pgk.Gin) = results2.lin.mu.u.res2_3 - results2.lin.mu.l.res2_3;
-			% mu_2(results2.Pgk.Gin) = results2.lin.mu.u.res3_2;
-			% mu_3(results2.Pgk.Gin) = results2.lin.mu.l.res4_2;
-			% mu_4(results2.Pgk.Gin) = 0;
-			% % shift to internal. Only for matching orders
-			% results2.order.state = 'i';
-			% aux1 = zeros(size(results2.gen,1),1);
-			% % mapping to external. Both off line generators and contingency out generator must have mu = 0
-			% mu_1 = i2e_data(results2,mu_1,aux1,'gen');
-			% mu_2 = i2e_data(results2,mu_2,aux1,'gen');
-			% mu_3 = i2e_data(results2,mu_3,aux1,'gen');
-			% mu_4 = i2e_data(results2,mu_4,aux1,'gen');
-			% results2.order.state = 'e';
-			% % calculate cut as taylor first order approximation
-			% % calculate mu*f(Pg)
-			% mult_vector = mu_1.*results2.ygk(:,1)+mu_2.*results2.ygk(:,2)-mu_3.*results2.ygk(:,3) + mu_4;
-			% const_term = mult_vector'*results0.gen(:,PG)/results2.baseMVA;
-			% % assign values to cut struct of the k-th contingency
-			% cut_x_contingency(con).f_obj = [cut_x_contingency(con).f_obj;Obj_func];
-			% cut_x_contingency(con).mu_b = [cut_x_contingency(con).mu_b;const_term];
-			% cut_x_contingency(con).mu_var = [cut_x_contingency(con).mu_var,mult_vector];
-			% Z_ub = Z_ub + Obj_func;
-
-			% % tao = 0.2;
-			% % cut_x_contingency(con).f_obj(end)= tao*cut_x_contingency(con).f_obj(end);
-			% % cut_x_contingency(con).mu_b(end)= tao*cut_x_contingency(con).mu_b(end);
-			% % cut_x_contingency(con).mu_var(:,end) = tao*cut_x_contingency(con).mu_var(:,end);
-			% % Z_ub = Z_ub + Obj_func;
-			% % adaptive_cut = 'adaptive'; % selects how to change current cut
-		% end % ends adaptive cut
-        % casoX_ext = rmfield(casoX_ext,'userfcn');
 	end % ends contingencies
-	% Z_ub = Z_ub + Z_lo - z_cut_obj; % calculates Z upper bound solution
     auxP = zeros(size(results0.gen,1),1);
     auxV = zeros(size(results0.bus,1),1);
     results0.order.state = 'i'; 
@@ -273,7 +189,6 @@ while (it_cuts <=cuts_tot)&&(no_mejora <= 10)&& ((upbound-lobound) >= 	0.1*lobou
     variables.Vm = i2e_data(results0,variables.val.Vm,auxV,'bus',1);
     results0.order.state = 'e';
 	if it_cuts==1
-		%revisar que hacer antes de pasar al otro
 		f_xk = Z_ub; % como por llevar las cuentas
 		best_var = variables;
 		bestmuPg = muPgx;
@@ -282,15 +197,11 @@ while (it_cuts <=cuts_tot)&&(no_mejora <= 10)&& ((upbound-lobound) >= 	0.1*lobou
 		epsilon_vector = [muPgx;muVbx]-[bestmuPg;bestmuVb];
 		var_vector = [variables.Pgen;variables.Vm]-[best_var.Pgen;best_var.Vm];
 		norma_eps = norm(epsilon_vector,2); % calculo la norma del vector
-		% t_bundle = (1/t_bundle+var_vector'*epsilon_vector/norma_eps)\1;
-%         t_bundle = 100*abs(Z_ub-f_xk);
         t_bundle = 1000*abs(Z_ub-f_xk);
 		best_var = variables;
 		bestmuVb = muVbx;
 		bestmuPg = muPgx;
         f_xk = Z_ub;
-    % else
-    %     t_bundle = 100*abs(Z_ub-f_xk);
 	end
 	if Z_ub < upbound
 		% update upper bound
@@ -306,22 +217,6 @@ while (it_cuts <=cuts_tot)&&(no_mejora <= 10)&& ((upbound-lobound) >= 	0.1*lobou
 	end
 	ZUB1 = [ZUB1;upbound];
 	ZUB = [ZUB;Z_ub]; % instruccion para revisar como es realmente el upper bound
-	% if it_cuts == 1
-	% 	no_mejora = 0;
-	% 	% ZUB = [ZUB;Z_ub]; % only for  iterative process
-	% 	best_solution_base = results0; % almaceno la mejor solución
-	% elseif Z_ub >= min(ZUB)
-	% 	no_mejora = no_mejora+1;
-	% 	% no_mejora = 0;
-	% 	% ZUB = [ZUB;ZUB(end)];
-	% else
-	% 	no_mejora = 0;
-	% 	best_solution = results0;
-	% 	% ZUB = [ZUB;Z_ub];
-	% end
-    % ***** add cuts with proximal bundle ****
-	% add cuts
-	% resultsa = toggle_cuts_newform(results0,cut_x_contingency);
     resultsa = toggle_cuts_newform_bundle(results0,cut_x_contingency,best_var,t_bundle);
     % *** end add cuts with proximal bundle
 
@@ -364,7 +259,7 @@ while (it_cuts <=cuts_tot)&&(no_mejora <= 10)&& ((upbound-lobound) >= 	0.1*lobou
 
 	mpopt.verbose = 0;
 	Z_lo = results0.f; % cost solution of master problem
-	lobound = Z_lo;
+	lobound = Z_lo; % se debe cambiar esta definicion
 	ZLB = [ZLB;lobound];
 	z_cut_obj = 0; % for substract contingency cuts cost
 	for con = 1:numel(cut_x_contingency)

@@ -1,6 +1,7 @@
 function [casoX,tot_gen,tot_branch,tot_con,contingency] = loadSCOPF_data(args)
 % Esta función carga la información del sistema a correr
 % se usa para organizar el código
+% DirName especifica la ruta donde se encuentra el archivo .mat con los datos
 if nargin == 0
     % caso 14 nodos
     casoX = loadcase('case14');
@@ -21,11 +22,15 @@ if nargin == 0
     contingency = struct('out',cell_out,'G_k',cell_Gk);
 else
     % cargar los de la competencia de arpa
-    DirName = 'C:\Users\pirit\Dropbox\FINAL ARPA\FINAL_FINAL-master\';
+    DirName = 'C:\Users\Camilo Acosta\Documents\GitHub\SCOPF_benders\Data_sets\';
+%     DirName = 'C:\Users\pirit\Dropbox\FINAL ARPA\FINAL_FINAL-master\';
+%     DirName = 'C:\Users\Camilo Acosta\Dropbox\FINAL ARPA\FINAL_FINAL-master\';
     % DirName = '/home/camilo/Dropbox/FINAL ARPA/FINAL_FINAL-master/'; % linea para linux
+%     DirName = 'C:\Users\Usuario UTP\Documents\Data\';
     
-%     FileName = 'network02O_23-scenario1.mat'; % red de 500 nodos
-    FileName = 'network_75O-040_scenario17.mat'; % red de 2712 nodos
+    FileName = 'network02O_23-scenario1.mat'; % red de 500 nodos
+%     FileName = 'network_75O-040_scenario17.mat'; % red de 2712 nodos
+%     FileName = 'network_12O-050_scenario39.mat'; % red de 9591 nodos
     MatData = [DirName FileName];
     CaseData = fullfile(DirName,FileName);
     casoX = loadcase(CaseData);
@@ -37,11 +42,18 @@ else
     %tot_gen = 21; % sistema 500 nodos
     %tot_branch = 79; % sistema 500 nodos
     %tot_con = tot_gen + tot_branch;
-    contingency = contingency([1:16 181:364]);
+    % Sistema 2742 nodos
+    % contingency = contingency([1:16 181:364]); % sistema 2742
     % contingency = contingency([1:16]);
-    tot_gen = 16; % 16 para sistema 2742 nodos
-    tot_branch = 184; % 184 nodos para sistema 2742 nodos
-    tot_con = tot_gen + tot_branch;
+    % tot_gen = 16; % 16 para sistema 2742 nodos
+    % tot_branch = 184; % 184 nodos para sistema 2742 nodos
+    % tot_con = tot_gen + tot_branch;
+    % sistema de 9591 nodos
+%     contingency = contingency([1:250 2000:2250]);
+%     tot_gen = 250;
+%     tot_branch = 250;
+%     tot_con = tot_branch + tot_gen;
+
 end
 
 %% ****************************************************************************

@@ -13,19 +13,6 @@ mpopt.ipopt.opts.acceptable_dual_inf_tol = 1;
 mpopt.ipopt.opts.max_iter = 3000;
 mpopt.verbose = 0;
 mpopt.opf.start = 2;
-% mpopt.ipopt.opts.slack_bound_frac = 0.5;
-% mpopt.ipopt.opts.slack_bound_push = 0.5;
-% mpopt.ipopt.opts.bound_mult_init_val = 1e3;
-% mpopt.ipopt.opts.mehrotra_algorithm = 'no';
-% mpopt.ipopt.opts.mu_strategy = 'adaptive';
-% mpopt.ipopt.opts.mu_oracle = 'loqo';
-% mpopt.ipopt.opts.fixed_mu_oracle = 'loqo';
-% mpopt.ipopt.opts.max_iter = 10;
-% mpopt.ipopt.opts.mu_linear_decrease_factor = 0.05;
-% mpopt.ipopt.opts.corrector_type ='affine';
-% mpopt.ipopt.opts.soc_method = 1;
-% mpopt.ipopt.opts.ma57_automatic_scaling = 'yes';
-% mpopt.ipopt.opts.alpha_for_y = 'primal-and-full';
 mpopt.ipopt.opts.print_level = 5;
 mpopt.ipopt.opts.acceptable_tol = 1e-3;
 % mpopt.ipopt.opts.mu_target = 1;
@@ -86,16 +73,6 @@ while stop_criteria && (iter < it_total) && (out.f>=0.05*fobj_base) && out.succe
             ygk_update(delta2<1e-4 & ~dir_mov,2)=0;
             ygk_update(delta2>(1-1e-4) & ~dir_mov,1)=0;
             ygk_update(delta2>(1-1e-4) & ~dir_mov,2)=1;
-            % xgk2zero = ygk_update(:,2)==0; % se puede igual porque es un entero
-            % xgk1zero = ygk_update(:,1)==0; % se puede igual porque es un entero
-            % % xgk2==0 y (u3-u2) > deltafmin cambian xgk2 por 1
-            % ygk_update(xgk2zero & (mu > deltafmin) & dir_mov,2)=1;
-            % % xgk2 != 0 & mu < - deltafmin & xgk1 ==1 cambian xgk1 a 0
-            % ygk_update(~xgk2zero & (mu < -deltafmin) & ~xgk1zero & ~dir_mov,1)=0;
-            % % mu < -deltafmin & xgk1 == 0 & xgk2 != 0 cambian xgk2 a cero
-            % ygk_update((mu<-deltafmin) & xgk1zero & ~xgk2zero & ~dir_mov ,2) = 0;
-            % % mu >deltafmin & xgk1 == 0 & xgk2 != 0 cambian xgk1 a 1
-            % ygk_update((mu>deltafmin) & xgk1zero & ~xgk2zero & dir_mov,1) = 1;
             aux = repmat([0,1],size(out.gen,1),1);
             out.order.state = 'i'; % manejo interno por un momento
             out.auxvar.ygk_col = zeros(size(out.order.int.gen,1),2); % igualo tamanho en interno
@@ -103,7 +80,6 @@ while stop_criteria && (iter < it_total) && (out.f>=0.05*fobj_base) && out.succe
             out.auxvar.ygk_col = i2e_data(out,out.auxvar.ygk_col,aux,'gen',1);
             out.order.state = 'e';
     else
-        % Por el momento no hacer nada  
         aux = repmat([0,1],size(out.gen,1),1);
         out.order.state = 'i';
         out.auxvar.ygk_col = i2e_data(out,out.auxvar.ygk_col,aux,'gen',1);
@@ -113,9 +89,6 @@ while stop_criteria && (iter < it_total) && (out.f>=0.05*fobj_base) && out.succe
     % proceso actualizacion de variables binarias (tension)
     if (any(abs(mu_v)>deltafmin))
 %         fprintf('ingresa por heurística de Vgk\n');
-        % vgk2zero = out.auxvar.vbin(:,2)==0; % se puede igualar porque es un entero
-        % vgk1zero = out.auxvar.vbin(:,1)==0; % se puede igualar porque es un entero
-        % vgk2==0 y (u3-u2) > deltafmin cambian vgk2 por 1
         % cambiar hacia la derecha
         out.auxvar.vbin(delta2_v>(1-1e-4) & mu_v>0,2)=1;
         out.auxvar.vbin(delta2_v>(1-1e-4) & mu_v>0,1)=1;
@@ -126,14 +99,6 @@ while stop_criteria && (iter < it_total) && (out.f>=0.05*fobj_base) && out.succe
         out.auxvar.vbin(delta2_v>(1-1e-4) & mu_v<0,1)=0;
         out.auxvar.vbin(delta2_v<1e-4 & mu_v<0,2)=0;
         out.auxvar.vbin(delta2_v<1e-4 & mu_v<0,1)=0;
-
-        % out.auxvar.vbin(vgk2zero & (mu_v > deltafmin),2)=1;
-        % % vgk2 != 0 & mu_v < - deltafmin & vgk1 ==1 cambian vgk1 a 0
-        % out.auxvar.vbin(~vgk2zero & (mu_v < -deltafmin) & ~vgk1zero,1)=0;
-        % % mu_v < -deltafmin & vgk1 == 0 & vgk2 != 0 cambian vgk2 a cero
-        % out.auxvar.vbin((mu_v<-deltafmin) & vgk1zero & ~vgk2zero,2) = 0;
-        % % mu_v >deltafmin & vgk1 == 0 & vgk2 != 0 cambian vgk1 a 1
-        % out.auxvar.vbin((mu_v>deltafmin) & vgk1zero & ~vgk2zero,1) = 1;
         aux = repmat([0,1],size(out.gen,1),1);
         out.order.state = 'i';
         out.auxvar.vbin = i2e_data(out,out.auxvar.vbin,aux,'gen',1);
@@ -171,11 +136,6 @@ while stop_criteria && (iter < it_total) && (out.f>=0.05*fobj_base) && out.succe
     diff_v = any(any(out1.auxvar.vbin-out.auxvar.vbin));
     if ~out.success
         disp('no converge una vez')
-        % disp('valores potencia')
-        % out.auxvar.ygk_col
-        % disp('valores tension')
-        % pause;
-        % out.auxvar.vbin
         mpopt2=mpopt;
         mpopt2.opf.start = 0; % arranque sin tener en cuenta la sol actual
         mpopt2.ipopt.opts.least_square_init_primal = 'yes';
@@ -189,12 +149,6 @@ while stop_criteria && (iter < it_total) && (out.f>=0.05*fobj_base) && out.succe
 		mpopt2.ipopt.opts.acceptable_constr_viol_tol = 1e-4;
 		mpopt2.ipopt.opts.tol = 1e-4;
         mpopt2.ipopt.opts.corrector_type='primal-dual';
-        % modificar variables auxiliares para verificar que funcione
-        % aux = repmat([0,1],size(out.gen,1),1);
-        % out.order.state = 'i';
-        % out.auxvar.vbin = i2e_data(out,out.auxvar.vbin,aux,'gen',1);
-        % out.auxvar.ygk_col = i2e_data(out,out.auxvar.ygk_col,aux,'gen',1);
-        % out.order.state = 'e';
         out.auxvar.vbin = repmat([0,1],size(out.gen,1),1);
         out.auxvar.ygk_col = repmat([0,1],size(out.gen,1),1);
         out = runopf(out,mpopt2);
@@ -208,17 +162,5 @@ while stop_criteria && (iter < it_total) && (out.f>=0.05*fobj_base) && out.succe
     end
     stop_criteria = (any(abs([mu_p;mu_v])>deltafmin)|(out.f<((1-beta_factor)*fo_ant))) & diff_p & diff_v;
 end
-% out = rmfield(out,'auxvar'); % borro campo que no se necesita en el proceso posterior y reduzco la carga computacional
-% out = rmfield(out,'holgura'); % borro variables de holgura porque no se necesita para caso base ni en otras contingencias
 out = rmfield(out1,'auxvar'); % borro campo que no se necesita en el proceso posterior y reduzco la carga computacional
 out = rmfield(out1,'holgura'); % borro variables de holgura porque no se necesita para caso base ni en otras contingencias
-if out.f<0.05*fobj_base
-    out.f = 0; % tal vez no se necesite pero lo dejo por el momento
-    out.lin.mu.u.delta_form = zeros(size(out.lin.mu.u.delta_form));
-    out.lin.mu.l.delta_form = zeros(size(out.lin.mu.l.delta_form));
-    out.var.mu.u.Pg = zeros(size(out.var.mu.u.Pg));
-    out.var.mu.l.Pg = zeros(size(out.var.mu.l.Pg));
-    out.lin.mu.u.Volt_newform = zeros(size(out.lin.mu.u.Volt_newform));
-    out.lin.mu.l.Volt_newform = zeros(size(out.lin.mu.l.Volt_newform));
-end
-% fprintf('el num iteraciones  es %f\n',iter);
